@@ -9,6 +9,7 @@ from yolov3 import YOLOv3Net
 import os
 import glob
 import winsound
+import math
 
 model_size = (416, 416,3)   # Očekivani ulazni format za dati model i istrenirane koeficijente
 num_classes = 80            # Broj klasa nad kojima je mreža trenirana  
@@ -20,8 +21,8 @@ confidence_threshold = 0.5          # Prag pouzdanosti prisustva objekta
 
 cfgfile = './cfg/yolov3.cfg'                  # Putanja do YOLO v3 konfiguracione datoteke
 weightfile = './weights/yolov3_weights.tf'    # Putanja do datoteke koja sadrži istrenirane koeficijente u TensorFlow formatu
-img_path_left_cam = "./data/images/image_L_true"        # Putanja do ulazne slike nad kojom se vrši detekcija
-img_path_right_cam = "../image_R_true"
+img_path_left_cam = "./data/images/image_L"        # Putanja do ulazne slike nad kojom se vrši detekcija
+img_path_right_cam = "../image_R"
 
 # sound duration in ms
 cSoundDuration = 1000
@@ -31,6 +32,16 @@ cSoundFrequency = 1000
 cLeftCamId = 0
 # right camera id 
 cRightCamId = 1
+# distance between cameras
+cCameraDistance = 0.54
+# image width
+cImageWidth = 1762
+# field of view 
+# 0.872665 rad = 50 degrees
+cFieldOfView = 0.872665 
+#Objects of interest from coco.names classes
+ObjectsOfInterest = [0, 1, 2, 3, 5, 6, 7]
+
 def loadAndResize(imgsDir):
     print ('loading  images...')
 
@@ -53,12 +64,20 @@ def loadAndResize(imgsDir):
 
     return [images, resized_images, filenames]
 
-def objectDistance(leftImg, rightImg, boxes, nums):
+def calculateDistance(disparity):
+    return (cCameraDistance * cImageWidth) / (2 * math.tan(cFieldOfView / 2) * disparity)
+
+def objectDistance(leftImg, rightImg, boxes, nums, classes):
 
     boxesLeft, numsLeft = boxes[0], nums[0]
     boxesRight, numsRight = boxes[1], nums[1]
     boxesLeft=np.array(boxesLeft)
     boxesRight = np.array(boxesRight)
+
+    classesLeft, classesRight = classes[0], classes[1]
+
+    print(classesLeft)
+    print(classesRight)
 
     print('levi: ', nums[0])
     print('desni:', nums[1])
@@ -73,8 +92,17 @@ def objectDistance(leftImg, rightImg, boxes, nums):
         centrePointX_leftImg = (x1y1_leftImg[0] + x2y2_leftImg[0]) / 2
         centrePointX_rightImg = (x1y1_rightImg[0] + x2y2_rightImg[0]) / 2
         
-        print("cetrePointX_left: ", centrePointX_leftImg)
-        print("centrePointX_right: ", centrePointX_rightImg)
+        #print("cetrePointX_left: ", centrePointX_leftImg)
+        #print("centrePointX_right: ", centrePointX_rightImg)
+        
+        #print("Disparity ", i, ":", abs(centrePointX_leftImg - centrePointX_rightImg)) 
+        
+        
+        if(classesLeft[i] in ObjectsOfInterest):
+            disparity = abs(centrePointX_leftImg - centrePointX_rightImg)
+            distanceFromObject = calculateDistance(disparity)
+        
+            print("Distance from object: ", distanceFromObject)
         
 def main():
 
@@ -123,7 +151,7 @@ def main():
             iou_threshold=iou_threshold,
             confidence_threshold=confidence_threshold)
 
-        objectDistance(images_left[i], images_right[i], boxes, nums)
+        objectDistance(images_left[i], images_right[i], boxes, nums, classes)
 
         out_img = draw_outputs(image, boxes, scores, classes, nums, class_names, cLeftCamId)
 
