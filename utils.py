@@ -106,7 +106,7 @@ def output_boxes(inputs, model_size, max_output_size, max_output_size_per_class,
 
     return boxes_dicts
 
-def draw_outputs(img, boxes, objectness, classes, nums, class_names, id):
+def draw_outputs(img, boxes, objectness, classes, nums, class_names, id, distanceIndexPair):
     #Iscrtavanje detektovanih objekata na slici (pravougaonih, ime klase i verovatnoća)
 
     #Parametri:
@@ -117,6 +117,7 @@ def draw_outputs(img, boxes, objectness, classes, nums, class_names, id):
     #    nums: Broj detektovanih objekata
     #    class_names: Lista sa imenima klasa
     #    id: Leva ili desna kamera (leva - 0, desna - 1)
+    #    dinstaceIndexPair: parovi izracunatih distanci i indeksa bounding box-a
     #Povratna vrednost:
     #    img: Izlazna slika
 
@@ -132,4 +133,11 @@ def draw_outputs(img, boxes, objectness, classes, nums, class_names, id):
         img = cv2.putText(img, '{} {:.4f}'.format(
             class_names[int(classes[i])], objectness[i]),
                           (x1y1), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
+                          
+        #print([x[1] for x in distanceIndexPair])
+        for tmp in distanceIndexPair:
+            if(i == tmp[1]):
+                distance = tmp[0]
+                img = cv2.putText(img, '{:.4f}'.format(distance), (x1y1), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
+                
     return img

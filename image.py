@@ -56,7 +56,6 @@ def loadAndResize(imgsDir):
 
         images.append(img)
 
-        #img = tf.expand_dims(img, 0) # Dodavanje još jedne dimenzije, jer je ulaz definsian kao batch slika
         resized_images.append(resize_image(img, (model_size[0],model_size[1])))
 
         filenames.append(os.path.basename(imagePath))
@@ -69,41 +68,64 @@ def calculateDistance(disparity):
 
 def objectDistance(leftImg, rightImg, boxes, nums, classes):
 
-    boxesLeft, numsLeft = boxes[0], nums[0]
-    boxesRight, numsRight = boxes[1], nums[1]
+    boxesLeft = boxes[0]
+    boxesRight = boxes[1]
     boxesLeft=np.array(boxesLeft)
     boxesRight = np.array(boxesRight)
-
-    classesLeft, classesRight = classes[0], classes[1]
-
-    print(classesLeft)
-    print(classesRight)
 
     print('levi: ', nums[0])
     print('desni:', nums[1])
     
-    j = 0
-    for i in range(min(numsLeft,numsRight)):
-        x1y1_leftImg = tuple((boxesLeft[i,0:2] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
-        x2y2_leftImg = tuple((boxesLeft[i,2:4] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
-        x1y1_rightImg = tuple((boxesRight[i,0:2] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
-        x2y2_rightImg = tuple((boxesRight[i,2:4] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
-
+    distanceIndexPair = []
+    indicator = 1
+    if(nums[0] < nums[1]):
+        minBoxes, maxBoxes = boxesLeft, boxesRight
+        classesMin, classesMax = classes[0], classes[1]
+        numsMin, numsMax = nums[0], nums[1]
+        indicator = 0
+    else:
+        minBoxes, maxBoxes = boxesRight, boxesLeft
+        classesMin, classesMax = classes[1], classes[0]
+        numsMin, numsMax = nums[1], nums[0]
+    
+    
+    print(len(minBoxes))
+    
+    for i in range(numsMin):
+        x1y1_leftImg = tuple((minBoxes[i,0:2] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
+        x2y2_leftImg = tuple((minBoxes[i,2:4] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
         centrePointX_leftImg = (x1y1_leftImg[0] + x2y2_leftImg[0]) / 2
-        centrePointX_rightImg = (x1y1_rightImg[0] + x2y2_rightImg[0]) / 2
+        centrePointY_leftImg = (x1y1_leftImg[1] + x2y2_leftImg[1]) / 2
         
+        for j in range(numsMax):
+            x1y1_rightImg = tuple((maxBoxes[i,0:2] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
+            x2y2_rightImg = tuple((maxBoxes[i,2:4] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
+            centrePointX_rightImg = (x1y1_rightImg[0] + x2y2_rightImg[0]) / 2
+            centrePointY_rightImg = (x1y1_rightImg[1] + x2y2_rightImg[1]) / 2
+                    
         #print("cetrePointX_left: ", centrePointX_leftImg)
         #print("centrePointX_right: ", centrePointX_rightImg)
         
         #print("Disparity ", i, ":", abs(centrePointX_leftImg - centrePointX_rightImg)) 
         
+            if(classesMin[i] in ObjectsOfInterest):
+                if (abs(centrePointY_leftImg - centrePointY_rightImg) < 50):
+                    disparity = abs(centrePointX_leftImg - centrePointX_rightImg)
+                    if ((disparity < 50 and centrePointY_leftImg < 200) or \
+                        (disparity < 350 and centrePointY_leftImg >= 200)):
+                        
+                        distanceFromObject = calculateDistance(disparity)
+                        if (indicator == 0):
+                            tup = (distanceFromObject, i)
+                        else :
+                            tup = (distanceFromObject, j)
+                        distanceIndexPair.append(tup)
+                        
+                        print("Distance from object: ", distanceFromObject)
+                        break
         
-        if(classesLeft[i] in ObjectsOfInterest):
-            disparity = abs(centrePointX_leftImg - centrePointX_rightImg)
-            distanceFromObject = calculateDistance(disparity)
-        
-            print("Distance from object: ", distanceFromObject)
-        
+    return distanceIndexPair
+    
 def main():
 
     # Kreiranje modela
@@ -128,6 +150,9 @@ def main():
     # Load right camera data 
     [images_right, resized_images_right, filenames_right] = loadAndResize(img_path_right_cam)
     
+    # Object distance and bounding box index
+    distanceIndexPair = []
+    
     # Inferencija nad ulaznom slikom
     # izlazne predikcije pred - skup vektora (10647), gde svaki odgovara jednom okviru lokacije objekta 
     for i in range(0, len(filenames_left)):
@@ -151,9 +176,9 @@ def main():
             iou_threshold=iou_threshold,
             confidence_threshold=confidence_threshold)
 
-        objectDistance(images_left[i], images_right[i], boxes, nums, classes)
+        distanceIndexPair = objectDistance(images_left[i], images_right[i], boxes, nums, classes)
 
-        out_img = draw_outputs(image, boxes, scores, classes, nums, class_names, cLeftCamId)
+        out_img = draw_outputs(image, boxes, scores, classes, nums, class_names, cLeftCamId, distanceIndexPair)
 
         # Čuvanje rezultata u datoteku
         out_file_name = './out/Izlazna slika.png'
