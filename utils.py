@@ -134,10 +134,10 @@ def draw_outputs(img, boxes, objectness, classes, nums, class_names, id, distanc
             class_names[int(classes[i])], objectness[i]),
                           (x1y1), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
                           
-        #print([x[1] for x in distanceIndexPair])
+        
         for tmp in distanceIndexPair:
             if(i == tmp[1]):
                 distance = tmp[0]
-                img = cv2.putText(img, '{:.4f}'.format(distance), (x1y1), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
+                img = cv2.putText(img, '{:.4f}'.format(distance), x2y2, cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
                 
     return img

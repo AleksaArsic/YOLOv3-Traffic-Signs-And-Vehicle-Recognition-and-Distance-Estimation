@@ -21,8 +21,8 @@ confidence_threshold = 0.5          # Prag pouzdanosti prisustva objekta
 
 cfgfile = './cfg/yolov3.cfg'                  # Putanja do YOLO v3 konfiguracione datoteke
 weightfile = './weights/yolov3_weights.tf'    # Putanja do datoteke koja sadrži istrenirane koeficijente u TensorFlow formatu
-img_path_left_cam = "./data/images/image_L"        # Putanja do ulazne slike nad kojom se vrši detekcija
-img_path_right_cam = "../image_R"
+img_path_left_cam = "./data/images/image_L_true"        # Putanja do ulazne slike nad kojom se vrši detekcija
+img_path_right_cam = "../image_R_true"
 
 # sound duration in ms
 cSoundDuration = 1000
@@ -78,7 +78,8 @@ def objectDistance(leftImg, rightImg, boxes, nums, classes):
     
     distanceIndexPair = []
     indicator = 1
-    if(nums[0] < nums[1]):
+    
+    if(nums[0] <= nums[1]):
         minBoxes, maxBoxes = boxesLeft, boxesRight
         classesMin, classesMax = classes[0], classes[1]
         numsMin, numsMax = nums[0], nums[1]
@@ -88,9 +89,7 @@ def objectDistance(leftImg, rightImg, boxes, nums, classes):
         classesMin, classesMax = classes[1], classes[0]
         numsMin, numsMax = nums[1], nums[0]
     
-    
-    print(len(minBoxes))
-    
+        
     for i in range(numsMin):
         x1y1_leftImg = tuple((minBoxes[i,0:2] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
         x2y2_leftImg = tuple((minBoxes[i,2:4] * [leftImg.shape[1],leftImg.shape[0]]).astype(np.int32))
@@ -98,34 +97,38 @@ def objectDistance(leftImg, rightImg, boxes, nums, classes):
         centrePointY_leftImg = (x1y1_leftImg[1] + x2y2_leftImg[1]) / 2
         
         for j in range(numsMax):
-            x1y1_rightImg = tuple((maxBoxes[i,0:2] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
-            x2y2_rightImg = tuple((maxBoxes[i,2:4] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
+            x1y1_rightImg = tuple((maxBoxes[j,0:2] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
+            x2y2_rightImg = tuple((maxBoxes[j,2:4] * [rightImg.shape[1],rightImg.shape[0]]).astype(np.int32))
             centrePointX_rightImg = (x1y1_rightImg[0] + x2y2_rightImg[0]) / 2
             centrePointY_rightImg = (x1y1_rightImg[1] + x2y2_rightImg[1]) / 2
                     
-        #print("cetrePointX_left: ", centrePointX_leftImg)
-        #print("centrePointX_right: ", centrePointX_rightImg)
-        
-        #print("Disparity ", i, ":", abs(centrePointX_leftImg - centrePointX_rightImg)) 
-        
             if(classesMin[i] in ObjectsOfInterest):
-                if (abs(centrePointY_leftImg - centrePointY_rightImg) < 50):
+                if (abs(centrePointY_leftImg - centrePointY_rightImg) < 100):
                     disparity = abs(centrePointX_leftImg - centrePointX_rightImg)
-                    if ((disparity < 50 and centrePointY_leftImg < 200) or \
-                        (disparity < 350 and centrePointY_leftImg >= 200)):
+                    if ((centrePointX_leftImg - centrePointX_rightImg > 0 and indicator == 0) or \
+                        (centrePointX_rightImg - centrePointX_leftImg > 0 and indicator == 1)):
                         
-                        distanceFromObject = calculateDistance(disparity)
-                        if (indicator == 0):
-                            tup = (distanceFromObject, i)
-                        else :
-                            tup = (distanceFromObject, j)
-                        distanceIndexPair.append(tup)
-                        
-                        print("Distance from object: ", distanceFromObject)
-                        break
+                        if ((disparity < 100 and centrePointY_leftImg < 400) or \
+                            (disparity < 350 and centrePointY_leftImg >= 400)):
+                                distanceFromObject = calculateDistance(disparity)
+                            
+                                if (indicator == 0):
+                                    tup = (distanceFromObject, i)
+                                else:
+                                    tup = (distanceFromObject, j)
+                                    
+                                distanceIndexPair.append(tup)
+                                
+                                # sound notification if any object is too close to the vehicle 
+                                if(centrePointX_leftImg >= 861 and centrePointX_leftImg <= 901 and centrePointY_leftImg >= 450):
+                                    if(distanceFromObject < 20):
+                                        winsound.Beep(cSoundFrequency, cSoundDuration)
+                                
+                                print("Distance from object: ", distanceFromObject)
+                                break
         
     return distanceIndexPair
-    
+          
 def main():
 
     # Kreiranje modela
@@ -176,6 +179,7 @@ def main():
             iou_threshold=iou_threshold,
             confidence_threshold=confidence_threshold)
 
+        # calculate distance
         distanceIndexPair = objectDistance(images_left[i], images_right[i], boxes, nums, classes)
 
         out_img = draw_outputs(image, boxes, scores, classes, nums, class_names, cLeftCamId, distanceIndexPair)
